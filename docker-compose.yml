@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: exzosverse
+      POSTGRES_PASSWORD: exzosverse123
+      POSTGRES_DB: exzosverse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "postgresql://exzosverse:exzosverse123@postgres:5432/exzosverse"
+      REDIS_URL: "redis://redis:6379"
+      NODE_ENV: "development"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./apps:/app/apps
+      - ./packages:/app/packages
+
+volumes:
+  postgres_data:
+  redis_data:
