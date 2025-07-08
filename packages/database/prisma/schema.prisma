@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Organizações (Tenants)
+model Organization {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  plan          Plan     @default(STARTER)
+  customDomain  String?  @unique
+  
+  // Configurações
+  settings      Json     @default("{}")
+  limits        Json     @default("{}")
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relações
+  members       OrganizationMember[]
+  invites       Invite[]
+  apiKeys       ApiKey[]
+  webhooks      Webhook[]
+  auditLogs     AuditLog[]
+  
+  @@index([slug])
+}
+
+enum Plan {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+// Usuários
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  avatarUrl     String?
+  
+  // Autenticação
+  clerkId       String?  @unique
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relações
+  organizations OrganizationMember[]
+  auditLogs     AuditLog[]
+  
+  @@index([email])
+  @@index([clerkId])
+}
+
+// Relação Usuário-Organização
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  role           Role         @default(MEMBER)
+  
+  // Relações
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  joinedAt       DateTime     @default(now())
+  
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// Convites
+model Invite {
+  id             String       @id @default(cuid())
+  email          String
+  role           Role         @default(MEMBER)
+  token          String       @unique @default(cuid())
+  
+  // Relações
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  
+  @@index([email])
+  @@index([token])
+}
+
+// API Keys
+model ApiKey {
+  id             String       @id @default(cuid())
+  name           String
+  key            String       @unique
+  lastUsedAt     DateTime?
+  
+  // Relações
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime?
+  
+  @@index([key])
+  @@index([organizationId])
+}
+
+// Webhooks
+model Webhook {
+  id             String       @id @default(cuid())
+  url            String
+  events         String[]     // ['user.created', 'order.completed', etc]
+  active         Boolean      @default(true)
+  secret         String
+  
+  // Relações
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  
+  @@index([organizationId])
+}
+
+// Audit Logs
+model AuditLog {
+  id             String       @id @default(cuid())
+  action         String       // 'user.login', 'settings.updated', etc
+  metadata       Json?        // Dados adicionais sobre a ação
+  ipAddress      String?
+  userAgent      String?
+  
+  // Relações
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Timestamps
+  createdAt      DateTime     @default(now())
+  
+  @@index([organizationId, createdAt])
+  @@index([userId])
+  @@index([action])
+}
